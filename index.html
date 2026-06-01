@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cartographie des Établissements Scolaires — Département du Nord-Est</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root {
+    --ink: #1a1a2e;
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --cream: #f8f4ec;
+    --deep: #0f1623;
+    --card-bg: rgba(255,255,255,0.97);
+    --accent: #2e5fa3;
+    --accent2: #d64045;
+    --shadow: 0 8px 40px rgba(0,0,0,0.18);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--deep);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ───── HEADER ───── */
+  .header {
+    background: linear-gradient(135deg, #0f1623 0%, #1a2744 60%, #0f1623 100%);
+    border-bottom: 2px solid var(--gold);
+    padding: 28px 40px 22px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 80% 50%, rgba(201,168,76,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header-flag {
+    width: 56px; height: 40px;
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    display: flex; flex-direction: column;
+  }
+  .flag-blue { flex: 1; background: #003F87; }
+  .flag-red  { flex: 1; background: #D21034; }
+  .header-text { flex: 1; }
+  .header-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--gold-light); opacity: 0.85; margin-bottom: 4px;
+  }
+  .header-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px; font-weight: 700;
+    color: #fff; line-height: 1.2;
+  }
+  .header-subtitle {
+    font-size: 12px; color: rgba(255,255,255,0.55);
+    margin-top: 6px; letter-spacing: 0.5px;
+  }
+  .header-badge {
+    background: rgba(201,168,76,0.15);
+    border: 1px solid rgba(201,168,76,0.4);
+    border-radius: 8px;
+    padding: 8px 16px;
+    text-align: center;
+  }
+  .badge-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px; font-weight: 700;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .badge-lbl {
+    font-size: 10px; color: rgba(255,255,255,0.55);
+    letter-spacing: 1px; text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* ───── LAYOUT ───── */
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: calc(100vh - 110px);
+  }
+
+  /* ───── SIDEBAR ───── */
+  .sidebar {
+    background: var(--cream);
+    overflow-y: auto;
+    border-right: 1px solid rgba(201,168,76,0.25);
+    display: flex; flex-direction: column;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 4px; }
+
+  .sidebar-header {
+    padding: 18px 20px 14px;
+    background: #fff;
+    border-bottom: 1px solid rgba(0,0,0,0.07);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .sidebar-header h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px; font-weight: 600; color: var(--ink);
+    letter-spacing: 0.3px;
+  }
+  .sidebar-header p {
+    font-size: 11px; color: #888; margin-top: 2px;
+  }
+
+  .school-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 20px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    transition: background 0.2s, border-left 0.2s;
+    border-left: 3px solid transparent;
+    background: #fff;
+  }
+  .school-item:hover { background: #f0f4fc; border-left-color: var(--accent); }
+  .school-item.active { background: #eef2fb; border-left-color: var(--accent); }
+  .school-item.no-coords { opacity: 0.6; cursor: default; }
+  .school-item.no-coords:hover { background: #fff; border-left-color: transparent; }
+
+  .school-num {
+    width: 26px; height: 26px; flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+  }
+  .school-item.no-coords .school-num { background: #aaa; }
+
+  .school-info { flex: 1; }
+  .school-name {
+    font-size: 12.5px; font-weight: 500; color: var(--ink);
+    line-height: 1.35;
+  }
+  .school-coords {
+    font-size: 10.5px; color: #999; margin-top: 3px;
+    font-family: 'DM Sans', sans-serif; letter-spacing: 0.3px;
+  }
+  .school-tag {
+    display: inline-block;
+    font-size: 9.5px; padding: 2px 7px;
+    border-radius: 20px; margin-top: 5px;
+    font-weight: 500; letter-spacing: 0.3px;
+  }
+  .tag-geo { background: #e8f4ea; color: #2e7d32; }
+  .tag-no  { background: #fce8e8; color: #c62828; }
+
+  /* ───── STATS BAR ───── */
+  .stats-bar {
+    margin: 12px 20px;
+    background: linear-gradient(135deg, var(--accent) 0%, #1a3a6e 100%);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .stat { text-align: center; }
+  .stat-val { font-family: 'Playfair Display', serif; font-size: 20px; color: #fff; font-weight: 700; }
+  .stat-lbl { font-size: 9.5px; color: rgba(255,255,255,0.65); text-transform: uppercase; letter-spacing: 1px; margin-top: 1px; }
+
+  /* ───── MAP ───── */
+  #map {
+    width: 100%; height: 100%;
+    z-index: 1;
+  }
+
+  /* ───── MAP CONTROLS ───── */
+  .map-controls {
+    position: absolute; top: 16px; right: 16px; z-index: 999;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .map-btn {
+    background: #fff;
+    border: none; border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px; font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+    color: var(--ink);
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+    letter-spacing: 0.3px;
+  }
+  .map-btn:hover { background: var(--accent); color: #fff; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.22); }
+  .map-btn.active { background: var(--accent); color: #fff; }
+
+  /* ───── POPUP ───── */
+  .leaflet-popup-content-wrapper {
+    border-radius: 12px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2) !important;
+    padding: 0 !important;
+    overflow: hidden;
+    border: none !important;
+  }
+  .leaflet-popup-content { margin: 0 !important; width: 260px !important; }
+  .leaflet-popup-tip-container { margin-top: -1px; }
+
+  .popup-header {
+    background: linear-gradient(135deg, var(--accent), #1a3a6e);
+    padding: 12px 16px;
+    color: #fff;
+  }
+  .popup-num {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: rgba(255,255,255,0.6); margin-bottom: 3px;
+  }
+  .popup-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px; font-weight: 600; line-height: 1.3;
+  }
+  .popup-body { padding: 12px 16px; background: #fff; }
+  .popup-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .popup-icon { font-size: 13px; width: 18px; text-align: center; }
+  .popup-text { font-size: 11.5px; color: #555; }
+  .popup-coords {
+    background: #f5f5f5; border-radius: 6px;
+    padding: 6px 10px; margin-top: 8px;
+    font-size: 10.5px; color: #777; font-family: monospace;
+    letter-spacing: 0.3px;
+  }
+
+  /* ───── LEGEND ───── */
+  .legend-box {
+    position: absolute; bottom: 32px; left: 16px; z-index: 999;
+    background: rgba(255,255,255,0.97);
+    border-radius: 10px; padding: 12px 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    font-size: 11px;
+    min-width: 160px;
+  }
+  .legend-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 11px; font-weight: 600; color: var(--ink);
+    margin-bottom: 8px; letter-spacing: 0.5px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ───── WATERMARK ───── */
+  .watermark {
+    position: absolute; bottom: 10px; right: 16px; z-index: 999;
+    font-size: 9.5px; color: rgba(0,0,0,0.35);
+    letter-spacing: 1px; text-transform: uppercase;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  /* Custom marker pulse */
+  @keyframes pulse-ring {
+    0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(46,95,163,0.5); }
+    70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(46,95,163,0); }
+    100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(46,95,163,0); }
+  }
+  .pulse-marker { animation: pulse-ring 2s infinite; }
+
+  .map-btn.loading {
+    background: #f0a500 !important; color: #fff !important;
+    pointer-events: none; cursor: wait;
+  }
+  /* ───── ÉTIQUETTES NOMS ───── */
+  .school-label-tooltip {
+    background: rgba(255,255,255,0.95) !important;
+    border: 1px solid rgba(46,95,163,0.4) !important;
+    border-radius: 5px !important;
+    padding: 3px 8px !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 10.5px !important;
+    font-weight: 500 !important;
+    color: #1a1a2e !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18) !important;
+    white-space: nowrap !important;
+    pointer-events: none !important;
+  }
+  .school-label-tooltip::before {
+    border-right-color: rgba(46,95,163,0.4) !important;
+  }
+
+  /* ───── OVERLAY EXPORT ───── */
+  #export-overlay {
+    display:none; position:fixed; inset:0; z-index:9999;
+    background:rgba(15,22,35,0.75); backdrop-filter:blur(4px);
+    align-items:center; justify-content:center; flex-direction:column; gap:16px;
+  }
+  #export-overlay.show { display:flex; }
+  .export-spinner {
+    width:48px; height:48px; border:4px solid rgba(201,168,76,0.3);
+    border-top-color:var(--gold); border-radius:50%;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .export-msg { color:#fff; font-size:13px; letter-spacing:1px; }
+
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; grid-template-rows: 45vh 55vh; }
+    .sidebar { height: 45vh; }
+    .header { padding: 16px 20px; }
+    .header-title { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="export-overlay">
+  <div class="export-spinner"></div>
+  <div class="export-msg">Génération du PNG en cours…</div>
+</div>
+
+<header class="header">
+  <div class="header-flag">
+    <div class="flag-blue"></div>
+    <div class="flag-red"></div>
+  </div>
+  <div class="header-text">
+    <div class="header-label">République d'Haïti · Département du Nord-Est</div>
+    <div class="header-title">Cartographie des Établissements Scolaires</div>
+    <div class="header-subtitle">Répartition géographique — Données de terrain 2025–2026</div>
+  </div>
+  <div class="header-badge">
+    <div class="badge-num" id="total-count">12</div>
+    <div class="badge-lbl">établissements</div>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h3>Liste des établissements</h3>
+      <p>Cliquez pour localiser sur la carte</p>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-val" id="geo-count">12</div>
+        <div class="stat-lbl">Géolocalisés</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="no-geo-count">0</div>
+        <div class="stat-lbl">À localiser</div>
+      </div>
+    </div>
+
+    <div id="school-list"></div>
+  </aside>
+
+  <!-- MAP CONTAINER -->
+  <div style="position:relative; flex:1;">
+    <div id="map"></div>
+
+    <!-- Controls -->
+    <div class="map-controls">
+      <button class="map-btn" id="btn-satellite" onclick="toggleLayer('satellite')">
+        🛰️ Satellite
+      </button>
+      <button class="map-btn" id="btn-topo" onclick="toggleLayer('topo')">
+        🗺️ Topographique
+      </button>
+      <button class="map-btn active" id="btn-osm" onclick="toggleLayer('osm')">
+        🌍 OpenStreetMap
+      </button>
+      <button class="map-btn" id="btn-labels" onclick="toggleLabels()">
+        🏷️ Noms des écoles
+      </button>
+      <button class="map-btn" onclick="fitAll()">
+        ⊞ Vue globale
+      </button>
+      <button class="map-btn" id="btn-export" onclick="exportMapPNG()">
+        📥 Exporter PNG
+      </button>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend-box">
+      <div class="legend-title">Légende</div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#2e5fa3"></div>
+        <span>École nationale</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#7b1fa2"></div>
+        <span>Lycée</span>
+      </div>
+    </div>
+
+    <div class="watermark">Cartographie SIG · 2026</div>
+  </div>
+</div>
+
+<script>
+// ─── DONNÉES ───────────────────────────────────────────────────────────────
+const SCHOOLS = [
+  { id:1,  name:"École Nationale de Sance",                              lat:19.538453,  lon:-71.728858, type:"ecole" },
+  { id:2,  name:"École Nationale Mixte Jean Price Mars",                 lat:19.621036,  lon:-72.023789, type:"ecole" },
+  { id:3,  name:"École Nationale de Haut Madeleine",                    lat:19.5048047, lon:-71.902274, type:"ecole" },
+  { id:4,  name:"École Nationale de Dolval",                             lat:19.59784,   lon:-71.9076678, type:"ecole" },
+  { id:5,  name:"École Nationale Fondamentale Complète de Savanette",    lat:19.3706657, lon:-71.777278, type:"ecole" },
+  { id:6,  name:"École Nationale d'Acul Samedi",                         lat:19.5237586, lon:-71.8787885, type:"ecole" },
+  { id:7,  name:"École Nationale Mixte (Terrier-Rouge)",                 lat:19.632869,  lon:-71.958422, type:"ecole" },
+  { id:8,  name:"École Nationale des Garçons de Fort-Liberté",           lat:19.662403,  lon:-71.832797, type:"ecole" },
+  { id:9,  name:"École Nationale Sabastianne",                           lat:19.296052,  lon:-71.7669549, type:"ecole" },
+  { id:10, name:"École Nationale de Baja",                               lat:19.4941596, lon:-71.7045984, type:"ecole" },
+  { id:11, name:"École Nationale de Grande Savane",                      lat:19.352826,  lon:-71.914071, type:"ecole" },
+  { id:12, name:"Lycée René Théodore (Ouanaminthe)",                    lat:19.549449,  lon:-71.722508, type:"lycee" },
+];
+
+// ─── MAP INIT ───────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true, preferCanvas: false });
+
+const TOPO = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  maxZoom: 17,
+  attribution: '© OpenTopoMap'
+});
+
+const SAT = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 18,
+  attribution: '© Esri World Imagery'
+});
+
+const OSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  attribution: '© OpenStreetMap'
+});
+
+OSM.addTo(map);
+let currentLayer = 'osm';
+
+function toggleLayer(type) {
+  // Retirer tous les fonds
+  [TOPO, SAT, OSM].forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
+  // Désactiver tous les boutons de fond
+  ['btn-satellite','btn-topo','btn-osm'].forEach(id => {
+    document.getElementById(id)?.classList.remove('active');
+  });
+  if (type === 'satellite') {
+    SAT.addTo(map);
+    document.getElementById('btn-satellite').classList.add('active');
+  } else if (type === 'osm') {
+    OSM.addTo(map);
+    document.getElementById('btn-osm').classList.add('active');
+  } else {
+    TOPO.addTo(map);
+    document.getElementById('btn-topo').classList.add('active');
+  }
+  currentLayer = type;
+}
+
+// ─── MARKERS ───────────────────────────────────────────────────────────────
+const markers = {};
+const bounds = [];
+let labelsVisible = false;
+
+function makeIcon(school, highlighted) {
+  const color = highlighted ? '#e65100' : (school.type === 'lycee' ? '#7b1fa2' : '#2e5fa3');
+  const size = highlighted ? 42 : 34;
+  return L.divIcon({
+    className: '',
+    html: `
+      <div style="
+        width:${size}px; height:${size}px;
+        border-radius:50% 50% 50% 0; transform:rotate(-45deg);
+        background:${color};
+        border:3px solid #fff;
+        box-shadow:0 3px 14px rgba(0,0,0,0.4);
+        display:flex; align-items:center; justify-content:center;
+      ">
+        <span style="transform:rotate(45deg); font-size:${highlighted?16:13}px; color:#fff; font-weight:700;">
+          ${school.id}
+        </span>
+      </div>`,
+    iconSize: [size, size],
+    iconAnchor: [size/2, size],
+    popupAnchor: [0, -size]
+  });
+}
+
+// Abréviation du nom pour l'étiquette (max ~28 car.)
+function shortName(name) {
+  return name.length > 28 ? name.substring(0, 26) + '…' : name;
+}
+
+function toggleLabels() {
+  labelsVisible = !labelsVisible;
+  const btn = document.getElementById('btn-labels');
+  btn.classList.toggle('active', labelsVisible);
+
+  SCHOOLS.forEach(s => {
+    if (!s.lat || !markers[s.id]) return;
+    const m = markers[s.id];
+    if (labelsVisible) {
+      m.bindTooltip(shortName(s.name), {
+        permanent: true,
+        direction: 'right',
+        offset: [10, -14],
+        className: 'school-label-tooltip'
+      }).openTooltip();
+    } else {
+      m.unbindTooltip();
+    }
+  });
+}
+
+function popupContent(s) {
+  const coordLine = s.lat
+    ? `${s.lat.toFixed(6)}, ${s.lon.toFixed(6)}`
+    : 'Coordonnées non spécifiées';
+
+  return `
+    <div class="popup-header">
+      <div class="popup-num">Établissement #${s.id}</div>
+      <div class="popup-name">${s.name}</div>
+    </div>
+    <div class="popup-body">
+      <div class="popup-row">
+        <span class="popup-icon">${s.type === 'lycee' ? '🎓' : '🏫'}</span>
+        <span class="popup-text">${s.type === 'lycee' ? 'Lycée national' : 'École nationale fondamentale'}</span>
+      </div>
+      <div class="popup-row">
+        <span class="popup-icon">📍</span>
+        <span class="popup-text">Département du Nord-Est — Haïti</span>
+      </div>
+      <div class="popup-coords">
+        ${s.lat ? `🌐 Lat: ${s.lat.toFixed(6)} · Lon: ${s.lon.toFixed(6)}` : '⚠️ Localisation à confirmer'}
+      </div>
+    </div>`;
+}
+
+SCHOOLS.forEach(s => {
+  if (!s.lat) return;
+  bounds.push([s.lat, s.lon]);
+  const marker = L.marker([s.lat, s.lon], { icon: makeIcon(s, false) })
+    .addTo(map)
+    .bindPopup(popupContent(s), { maxWidth: 280 });
+  marker.on('click', () => highlightSidebar(s.id));
+  markers[s.id] = marker;
+});
+
+// Vue initiale centrée sur le Nord-Est haïtien
+map.setView([19.48, -71.90], 9);
+
+function fitAll() {
+  // Bounds serrés sur le département du Nord-Est d'Haïti
+  // (exclut volontairement la République Dominicaine à l'est)
+  const haitiBounds = L.latLngBounds(
+    [19.18, -72.25],   // Sud-Ouest : couvre Sabastianne et Grande Savane
+    [19.75, -71.60]    // Nord-Est  : couvre Fort-Liberté et Sance
+  );
+  map.fitBounds(haitiBounds, { padding: [30, 30], maxZoom: 10 });
+}
+fitAll();
+
+// ─── SIDEBAR ───────────────────────────────────────────────────────────────
+const list = document.getElementById('school-list');
+
+SCHOOLS.forEach(s => {
+  const div = document.createElement('div');
+  div.className = 'school-item' + (s.lat ? '' : ' no-coords');
+  div.id = 'school-' + s.id;
+  div.innerHTML = `
+    <div class="school-num">${s.id}</div>
+    <div class="school-info">
+      <div class="school-name">${s.name}</div>
+      <div class="school-coords">${s.lat ? `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}` : 'Coordonnées non renseignées'}</div>
+      <span class="school-tag ${s.lat ? 'tag-geo' : 'tag-no'}">${s.lat ? '✓ Géolocalisé' : '⚠ À localiser'}</span>
+    </div>`;
+  if (s.lat) {
+    div.addEventListener('click', () => {
+      map.flyTo([s.lat, s.lon], 14, { duration: 1.2 });
+      setTimeout(() => markers[s.id]?.openPopup(), 1300);
+      highlightSidebar(s.id);
+    });
+  }
+  list.appendChild(div);
+});
+
+let activeId = null;
+function highlightSidebar(id) {
+  if (activeId) document.getElementById('school-' + activeId)?.classList.remove('active');
+  document.getElementById('school-' + id)?.classList.add('active');
+  document.getElementById('school-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  activeId = id;
+  // Update marker icons
+  SCHOOLS.forEach(s => {
+    if (s.lat && markers[s.id]) {
+      markers[s.id].setIcon(makeIcon(s, s.id === id));
+    }
+  });
+}
+
+// ─── EXPORT PNG AVEC LÉGENDE, ÉCHELLE ET FLÈCHE DU NORD ───────────────────
+async function exportMapPNG() {
+  const btn = document.getElementById('btn-export');
+  const overlay = document.getElementById('export-overlay');
+  btn.classList.add('loading');
+  btn.textContent = '⏳ Génération…';
+  overlay.classList.add('show');
+
+  try {
+    // Fermer tout popup ouvert
+    map.closePopup();
+    // Laisser la carte se stabiliser
+    await new Promise(r => setTimeout(r, 400));
+
+    const mapEl = document.getElementById('map');
+    const mapRect = mapEl.getBoundingClientRect();
+
+    // ── Capture html2canvas du conteneur carte ──────────────────────────────
+    const mapCanvas = await html2canvas(mapEl, {
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      scale: 2,                    // haute résolution
+      width:  mapRect.width,
+      height: mapRect.height,
+      x: 0, y: 0,
+      scrollX: 0, scrollY: 0,
+      foreignObjectRendering: false,
+      imageTimeout: 0,
+      removeContainer: true
+    });
+
+    const W = mapCanvas.width;   // déjà ×2 (scale:2)
+    const H = mapCanvas.height;
+    const SC = 2;                // facteur scale pour tous les dessins canvas
+
+    const TOP = 80  * SC;
+    const BOT = 48  * SC;
+
+    // ── Canvas final ────────────────────────────────────────────────────────
+    const final = document.createElement('canvas');
+    final.width  = W;
+    final.height = H + TOP + BOT;
+    const ctx = final.getContext('2d');
+
+    // 1. Fond
+    ctx.fillStyle = '#0f1623';
+    ctx.fillRect(0, 0, final.width, final.height);
+
+    // 2. Bandeau titre
+    const grad = ctx.createLinearGradient(0, 0, final.width, 0);
+    grad.addColorStop(0,   '#0f1623');
+    grad.addColorStop(0.5, '#1a2744');
+    grad.addColorStop(1,   '#0f1623');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, final.width, TOP);
+    ctx.fillStyle = '#c9a84c';
+    ctx.fillRect(0, TOP - 2*SC, final.width, 2*SC);
+
+    // Drapeau
+    const fx=20*SC, fy=16*SC, fw=40*SC, fh=28*SC;
+    ctx.fillStyle='#003F87'; ctx.fillRect(fx,fy,fw,fh/2);
+    ctx.fillStyle='#D21034'; ctx.fillRect(fx,fy+fh/2,fw,fh/2);
+    ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=SC;
+    ctx.strokeRect(fx,fy,fw,fh);
+
+    ctx.textBaseline='middle';
+    ctx.font=`600 ${10*SC}px "DM Sans",Arial`;
+    ctx.fillStyle='rgba(201,168,76,0.85)';
+    ctx.fillText("RÉPUBLIQUE D'HAÏTI · DÉPARTEMENT DU NORD-EST", fx+fw+14*SC, TOP*0.28);
+
+    ctx.font=`bold ${18*SC}px "Playfair Display",Georgia,serif`;
+    ctx.fillStyle='#ffffff';
+    ctx.fillText("Cartographie des Établissements Scolaires", fx+fw+14*SC, TOP*0.63);
+
+    // Badge
+    const bx=final.width-106*SC, by=10*SC, bw=88*SC, bh=TOP-20*SC;
+    ctx.fillStyle='rgba(201,168,76,0.15)';
+    roundRect(ctx,bx,by,bw,bh,6*SC);
+    ctx.strokeStyle='rgba(201,168,76,0.45)'; ctx.lineWidth=SC;
+    roundRectStroke(ctx,bx,by,bw,bh,6*SC);
+    ctx.font=`bold ${22*SC}px "Playfair Display",Georgia,serif`;
+    ctx.fillStyle='#c9a84c'; ctx.textAlign='center';
+    ctx.fillText('12', bx+bw/2, by+bh*0.45);
+    ctx.font=`500 ${8*SC}px "DM Sans",Arial`;
+    ctx.fillStyle='rgba(255,255,255,0.55)';
+    ctx.fillText('ÉTABLISSEMENTS', bx+bw/2, by+bh*0.78);
+    ctx.textAlign='left';
+
+    // 3. Image carte
+    ctx.drawImage(mapCanvas, 0, TOP);
+
+    // 4. Flèche du nord
+    drawNorthArrow(ctx, W - 60*SC, TOP + 62*SC, 40*SC, SC);
+
+    // 5. Barre d'échelle
+    drawScaleBar(ctx, 24*SC, TOP + H - 48*SC, SC);
+
+    // 6. Légende
+    drawLegend(ctx, 24*SC, TOP + H - 190*SC, SC);
+
+    // 7. Pied de page
+    ctx.fillStyle='#0f1623';
+    ctx.fillRect(0, TOP+H, final.width, BOT);
+    ctx.fillStyle='#c9a84c';
+    ctx.fillRect(0, TOP+H, final.width, 1.5*SC);
+    ctx.font=`400 ${9*SC}px "DM Sans",Arial`;
+    ctx.fillStyle='rgba(255,255,255,0.45)';
+    ctx.textAlign='left';
+    ctx.fillText('Sources : OpenTopoMap · Esri World Imagery · OpenStreetMap · Données terrain 2025–2026', 18*SC, TOP+H+BOT*0.55);
+    ctx.textAlign='right';
+    const now=new Date();
+    ctx.fillText('Cartographie SIG · '+now.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}), final.width-18*SC, TOP+H+BOT*0.55);
+    ctx.textAlign='left';
+
+    // 8. Téléchargement
+    const link=document.createElement('a');
+    link.download='carte_ecoles_nord_est_'+now.toISOString().slice(0,10)+'.png';
+    link.href=final.toDataURL('image/png');
+    link.click();
+
+  } catch(err) {
+    console.error('Export error:', err);
+    alert('Erreur export : ' + err.message);
+  } finally {
+    overlay.classList.remove('show');
+    btn.classList.remove('loading');
+    btn.innerHTML = '📥 Exporter PNG';
+  }
+}
+
+// ── Dessin : flèche du nord ──────────────────────────────────────────────────
+function drawNorthArrow(ctx, cx, cy, r, SC=1) {
+  SC = SC || 1;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + 4*SC, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.fill();
+  ctx.strokeStyle = '#2e5fa3'; ctx.lineWidth = 1.5*SC;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r);
+  ctx.lineTo(cx + r*0.38, cy + r*0.2);
+  ctx.lineTo(cx, cy + r*0.05);
+  ctx.closePath();
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + r);
+  ctx.lineTo(cx - r*0.38, cy - r*0.2);
+  ctx.lineTo(cx, cy - r*0.05);
+  ctx.closePath();
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.strokeStyle = '#aaa'; ctx.lineWidth = 0.5*SC;
+  ctx.stroke();
+
+  ctx.font = `bold ${Math.round(r*0.5)}px "DM Sans", Arial`;
+  ctx.fillStyle = '#1a1a2e';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('N', cx, cy - r - 4*SC);
+  ctx.textBaseline = 'middle';
+  ctx.restore();
+}
+
+// ── Dessin : barre d'échelle ──────────────────────────────────────────────────
+function drawScaleBar(ctx, x, y, SC=1) {
+  SC = SC || 1;
+  const mapSize = map.getSize();
+  const p1 = map.containerPointToLatLng(L.point(0, mapSize.y/2));
+  const p2 = map.containerPointToLatLng(L.point(100, mapSize.y/2));
+  const distM = p1.distanceTo(p2);
+  const ratio = mapSize.x > 0 ? (map.getContainer().offsetWidth / mapSize.x) : 1;
+  const barPx = 120 * SC;
+  const distTotal = distM * (barPx / (100 * SC)) / ratio;
+
+  let val, unit;
+  if (distTotal >= 1000) {
+    val  = Math.round(distTotal / 1000 * 10) / 10;
+    unit = 'km';
+  } else {
+    val  = Math.round(distTotal / 100) * 100;
+    unit = 'm';
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  roundRect(ctx, x - 6*SC, y - 8*SC, barPx + 64*SC, 40*SC, 6*SC);
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = SC;
+  roundRectStroke(ctx, x - 6*SC, y - 8*SC, barPx + 64*SC, 40*SC, 6*SC);
+
+  const segs = 4;
+  const segW = barPx / segs;
+  for (let i = 0; i < segs; i++) {
+    ctx.fillStyle = i % 2 === 0 ? '#1a1a2e' : '#fff';
+    ctx.fillRect(x + i * segW, y + 8*SC, segW, 10*SC);
+  }
+  ctx.strokeStyle = '#1a1a2e'; ctx.lineWidth = SC;
+  ctx.strokeRect(x, y + 8*SC, barPx, 10*SC);
+
+  ctx.fillStyle = '#1a1a2e';
+  ctx.font = `600 ${9*SC}px "DM Sans", Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  [0, 0.5, 1].forEach(frac => {
+    const lx = x + frac * barPx;
+    const lv = (frac * val).toFixed(frac === 0 ? 0 : 1);
+    ctx.fillText(lv, lx, y + 20*SC);
+  });
+  ctx.textAlign = 'left';
+  ctx.fillText(unit, x + barPx + 4*SC, y + 12*SC);
+  ctx.font = `400 ${8*SC}px "DM Sans", Arial`;
+  ctx.fillStyle = '#555';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('ÉCHELLE', x, y - 1*SC);
+}
+
+// ── Dessin : légende ──────────────────────────────────────────────────────────
+function drawLegend(ctx, x, y, SC=1) {
+  SC = SC || 1;
+  const items = [
+    { color:'#2e5fa3', label:'École nationale' },
+    { color:'#7b1fa2', label:'Lycée' },
+  ];
+  const pw = 170*SC, ph = items.length * 24*SC + 34*SC;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.93)';
+  roundRect(ctx, x, y, pw, ph, 8*SC);
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = SC;
+  roundRectStroke(ctx, x, y, pw, ph, 8*SC);
+
+  ctx.font = `600 ${10*SC}px "DM Sans", Arial`;
+  ctx.fillStyle = '#1a1a2e';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('LÉGENDE', x + 12*SC, y + 16*SC);
+  ctx.fillStyle = '#c9a84c';
+  ctx.fillRect(x + 12*SC, y + 26*SC, 36*SC, 1.5*SC);
+
+  items.forEach((item, i) => {
+    const iy = y + 36*SC + i * 24*SC;
+    ctx.save();
+    ctx.translate(x + 20*SC, iy + 7*SC);
+    ctx.rotate(Math.PI * -0.25);
+    ctx.beginPath();
+    ctx.arc(0, 0, 6*SC, 0, Math.PI * 2);
+    ctx.fillStyle = item.color;
+    ctx.fill();
+    ctx.restore();
+
+    ctx.font = `400 ${10*SC}px "DM Sans", Arial`;
+    ctx.fillStyle = '#333';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(item.label, x + 34*SC, iy + 7*SC);
+  });
+}
+
+// ── Helpers arrondi canvas ────────────────────────────────────────────────────
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+  ctx.fill();
+}
+function roundRectStroke(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h); ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+  ctx.stroke();
+}
+
+// ─── UPDATE COUNTS ──────────────────────────────────────────────────────────
+const geo = SCHOOLS.filter(s => s.lat).length;
+const noGeo = SCHOOLS.length - geo;
+document.getElementById('geo-count').textContent = geo;
+document.getElementById('no-geo-count').textContent = noGeo;
+document.getElementById('total-count').textContent = SCHOOLS.length;
+</script>
+</body>
+</html>
