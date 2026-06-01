@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cartographie des Établissements Scolaires — Département du Nord-Est</title>
+<title>Cartographie d'établissements scolaires — Département du Nord-Est</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -337,8 +337,8 @@
   </div>
   <div class="header-text">
     <div class="header-label">République d'Haïti · Département du Nord-Est</div>
-    <div class="header-title">Cartographie des Établissements Scolaires</div>
-    <div class="header-subtitle">Répartition géographique — Données de terrain 2025–2026</div>
+    <div class="header-title">Cartographie d'établissements scolaires</div>
+    <div class="header-subtitle">Répartition géographique — Données de terrain 2026</div>
   </div>
   <div class="header-badge">
     <div class="badge-num" id="total-count">12</div>
@@ -684,7 +684,7 @@ async function exportMapPNG() {
 
     ctx.font=`bold ${18*SC}px "Playfair Display",Georgia,serif`;
     ctx.fillStyle='#ffffff';
-    ctx.fillText("Cartographie des Établissements Scolaires", fx+fw+14*SC, TOP*0.63);
+    ctx.fillText("Cartographie d'établissements scolaires", fx+fw+14*SC, TOP*0.63);
 
     // Badge
     const bx=final.width-106*SC, by=10*SC, bw=88*SC, bh=TOP-20*SC;
@@ -720,7 +720,7 @@ async function exportMapPNG() {
     ctx.font=`400 ${9*SC}px "DM Sans",Arial`;
     ctx.fillStyle='rgba(255,255,255,0.45)';
     ctx.textAlign='left';
-    ctx.fillText('Sources : OpenTopoMap · Esri World Imagery · OpenStreetMap · Données terrain 2025–2026', 18*SC, TOP+H+BOT*0.55);
+    ctx.fillText('Sources : OpenTopoMap · Esri World Imagery · OpenStreetMap · Données de terrain 2026', 18*SC, TOP+H+BOT*0.55);
     ctx.textAlign='right';
     const now=new Date();
     ctx.fillText('Cartographie SIG · '+now.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}), final.width-18*SC, TOP+H+BOT*0.55);
